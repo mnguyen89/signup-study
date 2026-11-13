@@ -1,0 +1,691 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <script src="../no-autofill.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Prototype</title>
+  <script>
+    /* Resolve the two folders this page loads from, so it works in BOTH places:
+         Slacky (the component library)   SLACKY_BASE
+         the client template (this folder) CLIENT_BASE
+         previewed in place ....... shared/client/shell-client.html  -> '../slacky/', ''
+         copied into a prototype .. <prototype>/index.html           -> 'shared/slacky/', 'shared/client/'
+       (./new-prototype.sh and the journey's load.js point a copy's two at the kit's.)
+       Without this, previewing the template directly silently loses every
+       stylesheet and image.
+
+       document.write is deliberate: slacky.js must finish loading before the
+       DOMContentLoaded handler at the bottom of this file runs, and this keeps
+       it synchronous with no build step. */
+    (function () {
+      var inPlace = /\/shared\/client\/[^\/]*$/.test(window.location.pathname);
+      var base = inPlace ? '../slacky/' : 'shared/slacky/';
+      var client = inPlace ? '' : 'shared/client/';
+      window.SLACKY_BASE = base;
+      window.CLIENT_BASE = client;
+      /* Fresh files after every push: the kit's service worker (sw.js) */
+      if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+        var kitRoot = new URL(base + '../../', location.href).href;
+        navigator.serviceWorker.register(kitRoot + 'sw.js', { scope: kitRoot }).catch(function () {});
+      }
+      ['reset.css', 'tokens.css', 'components.css', 'shell.css'].forEach(function (f) {
+        document.write('<link rel="stylesheet" href="' + base + f + '">');
+      });
+      document.write('<scr' + 'ipt src="' + base + 'slacky.js"></scr' + 'ipt>');
+      /* Heading font for full-page flows (webapp style/_generic.typography.avantgarde.source.less) */
+      document.write('<style>@font-face{font-family:"Salesforce-Avant-Garde";font-style:normal;font-weight:700;' +
+        'src:url("' + base + 'fonts/avant-garde/avant-garde.woff2") format("woff2"),' +
+        'url("' + base + 'fonts/avant-garde/avant-garde.woff") format("woff");}</style>');
+    })();
+    /* Opening a saved variant (Dev panel > variant list, or the kit page's
+       variant menu): ?variant=dev-user:tenured,dev-email:off,… Its flow
+       settings are put in place before anything reads them; User type and
+       Interface are applied once the app is built (applyOpeningVariant). The
+       address then goes back to normal. User type and Interface are also
+       remembered for this tab (and kept up to date when changed in the
+       panel), so a browser reload keeps the same variant; Reset clears them. */
+    (function () {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        var SESSION_KEY = 'slacky-shell:session-settings:' + window.location.pathname;
+        if (!params.has('variant')) {
+          if (window.CLIENT_LAYER) return;      /* the journey keeps its own (shared/journey/load.js) */
+          var kept = window.sessionStorage.getItem(SESSION_KEY);
+          if (kept) window.OPENING_VARIANT = JSON.parse(kept);
+          return;
+        }
+        var settings = {};
+        params.get('variant').split(',').forEach(function (pair) {
+          var i = pair.indexOf(':');
+          if (i > 0) settings[pair.slice(0, i)] = pair.slice(i + 1);
+        });
+        params.delete('variant');
+        var rest = params.toString();
+        window.history.replaceState(null, '', window.location.pathname + (rest ? '?' + rest : '') + window.location.hash);
+        var path = window.location.pathname;
+        var STORED = { 'dev-email': 'email-verification', 'dev-onb': 'onboarding', 'dev-onb2': 'user-onboarding' };
+        Object.keys(STORED).forEach(function (id) {
+          if (settings[id]) window.localStorage.setItem('slacky-shell:' + STORED[id] + ':' + path, settings[id]);
+        });
+        window.OPENING_VARIANT = settings;
+        var forTab = { 'dev-user': settings['dev-user'] || 'new', 'dev-ia': settings['dev-ia'] || 'ia4' };
+        if (settings['dev-celebrate-style']) forTab['dev-celebrate-style'] = settings['dev-celebrate-style'];
+        if (!window.CLIENT_LAYER) window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(forTab));
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="../components/dev-panel/dev-panel.css">
+  <script src="../components/dev-panel/dev-panel.js"></script>
+  
+  <link rel="stylesheet" href="../components/slackbot-thinking-steps/slackbot-thinking-steps.css">
+  <script src="../components/slackbot-thinking-steps/slackbot-thinking-steps.js"></script>
+  <script src="../components/agent-streaming-reply/agent-streaming-reply.js"></script>
+  
+  <script>document.write('<link rel="stylesheet" href="' + window.CLIENT_BASE + 'shell-client.css">');</script>
+  
+  <script>
+    document.write('<link rel="stylesheet" href="' + window.CLIENT_BASE + 'shell-client-surfaces.css">');
+    ['shell-client-store.js', 'shell-client-emoji.js', 'shell-client-surfaces.js'].forEach(function (f) {
+      document.write('<scr' + 'ipt src="' + window.CLIENT_BASE + f + '"></scr' + 'ipt>');
+    });
+    /* The sign-up (signup/: email and code pages, team creation), shared with
+       Control. The journey loads it itself, where it always has */
+    if (!window.CLIENT_LAYER) {
+      ['signup/get-started.css', 'signup/team-creation.css', 'signup/segmentation.css'].forEach(function (f) {
+        document.write('<link rel="stylesheet" href="' + window.CLIENT_BASE + f + '">');
+      });
+      ['signup/get-started.js', 'signup/tc-previews.js', 'signup/team-creation.js', 'signup/segmentation.js'].forEach(function (f) {
+        document.write('<scr' + 'ipt src="' + window.CLIENT_BASE + f + '"></scr' + 'ipt>');
+      });
+    }
+  </script>
+  <style>
+    /* This prototype's own styles: they win over shell-client.css */
+  </style>
+</head>
+<body>
+  <div class="p-ia4_client">
+
+    
+    <div class="p-ia4_top_nav">
+      <div class="p-ia4_top_nav__container_wrapper">
+        <div class="p-ia4_top_nav__left"></div>
+        <div class="p-ia4_top_nav__search">
+          <div class="p-ia4_history_buttons">
+            <button class="p-ia4_top_nav__history_btn" id="tn-back" aria-label="Back"></button>
+            <button class="p-ia4_top_nav__history_btn" id="tn-forward" aria-label="Forward" disabled></button>
+            <button class="p-ia4_top_nav__history_menu_btn" id="tn-history" aria-label="History"></button>
+          </div>
+          <div class="p-ia4_top_nav__search_box">
+            <span class="p-ia4_top_nav__search_icon" id="tn-search"></span>
+            <span class="p-ia4_top_nav__search_text">Search Acme Inc</span>
+          </div>
+          <button class="p-ia4_top_nav__icon_btn p-ia4_top_nav__slackbot_btn" aria-label="Chat with Slackbot AI"
+                  id="tn-slackbot" aria-controls="slackbot-split" aria-expanded="false">
+            <span class="p-ia4_top_nav__slackbot_icon" role="img" aria-label="Slackbot AI"></span>
+          </button>
+        </div>
+        <div class="p-ia4_top_nav__right">
+          <button class="p-ia4_top_nav__icon_btn" id="tn-help" aria-label="Help"></button>
+        </div>
+      </div>
+    </div>
+
+    
+    <div class="p-client_workspace_wrapper">
+
+      
+      <div class="p-tab_rail_column">
+        
+        <div class="p-tab_rail__workspace">
+          <button class="p-tab_rail__workspace_button" type="button" aria-label="Acme Inc" id="team-switcher-trigger"
+                  aria-haspopup="menu" aria-expanded="false">A</button>
+        </div>
+        
+        <div class="p-tab_rail">
+          <div class="p-tab_rail__tab_menu">
+            <button class="p-tab_rail__button" aria-label="Slackbot" data-rail="slackbot">
+              <div class="p-tab_rail__button__icon">
+                <div class="p-tab_rail__button__icon_inner" id="tr-slackbot"></div>
+              </div>
+              <span class="p-tab_rail__button__label">Slackbot</span>
+            </button>
+            <button class="p-tab_rail__button p-tab_rail__button--active" aria-label="Home" data-rail="home">
+              <div class="p-tab_rail__button__icon">
+                <div class="p-tab_rail__button__icon_inner" id="tr-home"></div>
+              </div>
+              <span class="p-tab_rail__button__label">Home</span>
+            </button>
+            <button class="p-tab_rail__button" aria-label="DMs" data-rail="dms">
+              <div class="p-tab_rail__button__icon">
+                <div class="p-tab_rail__button__icon_inner" id="tr-dms"></div>
+              </div>
+              <span class="p-tab_rail__button__label">DMs</span>
+            </button>
+            <button class="p-tab_rail__button" aria-label="Activity" data-rail="activity">
+              <div class="p-tab_rail__button__icon">
+                <div class="p-tab_rail__button__icon_inner" id="tr-activity"></div>
+              </div>
+              <span class="p-tab_rail__button__label">Activity</span>
+            </button>
+            <button class="p-tab_rail__button" aria-label="Files" data-rail="files">
+              <div class="p-tab_rail__button__icon">
+                <div class="p-tab_rail__button__icon_inner" id="tr-files"></div>
+              </div>
+              <span class="p-tab_rail__button__label">Files</span>
+            </button>
+            <button class="p-tab_rail__button" aria-label="Agents &amp; tools" data-rail="agents">
+              <div class="p-tab_rail__button__icon">
+                <div class="p-tab_rail__button__icon_inner" id="tr-agents"></div>
+              </div>
+              <span class="p-tab_rail__button__label">Agents &amp; tools</span>
+            </button>
+            
+            <button class="p-tab_rail__button" aria-label="More" aria-haspopup="menu"
+                    aria-expanded="false" id="tr-more-button" hidden>
+              <div class="p-tab_rail__button__icon">
+                <div class="p-tab_rail__button__icon_inner" id="tr-more"></div>
+              </div>
+              <span class="p-tab_rail__button__label">More</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="p-control_strip">
+          <button class="p-control_strip__circle_button" aria-label="Create new" id="create-trigger"
+                  aria-haspopup="menu" aria-expanded="false">
+            <span class="p-control_strip__create_button__icon" id="tr-compose"></span>
+          </button>
+          <button class="p-control_strip__circle_button" aria-label="Pause notifications" id="tr-moon"></button>
+          <button type="button" class="p-control_strip__avatar" id="profile-trigger" aria-label="Profile menu"
+                  aria-haspopup="menu" aria-expanded="false">
+            <img id="me-avatar" alt="" width="36" height="36">
+            <span class="p-control_strip__avatar__presence"></span>
+          </button>
+        </div>
+      </div>
+
+      
+      <div class="p-client_workspace">
+        <div class="p-client_workspace__layout">
+          <div class="p-resizer" id="sidebar-resizer" role="separator" tabindex="0"
+               aria-orientation="vertical" aria-label="Resize sidebar"></div>
+
+          
+          <div class="p-view_contents p-view_contents--sidebar">
+            
+            <div class="p-channel_sidebar" id="sidebar-dynamic" hidden></div>
+
+            
+            <div class="p-channel_sidebar p-agentic_sidebar" id="sidebar-agentic">
+              <div class="p-agentic_topbar">
+                <span class="p-agentic_topbar__window_buttons" aria-hidden="true"></span>
+                <button type="button" class="p-agentic_topbar__btn" aria-label="Hide sidebar" data-unsupported="Hide sidebar">
+                  <span id="ag-icon-sidebar"></span>
+                </button>
+                
+                <div class="p-agentic_topbar__end" id="ag-topbar-end">
+                  <button type="button" class="p-agentic_create" id="ag-create-trigger" aria-label="Create new"
+                          aria-haspopup="menu" aria-expanded="false">
+                    <span class="p-control_strip__create_button__icon" id="ag-create-icon"></span>
+                  </button>
+                </div>
+              </div>
+              <div class="p-agentic_nav">
+                <button type="button" class="p-agentic_search" id="ag-search">
+                  <span class="p-agentic_search__icon" id="ag-icon-search"></span>
+                  <span>Search</span>
+                </button>
+                <a class="p-channel_sidebar__page_row" href="javascript:void(0)" data-ag-nav="activity">
+                  <span class="p-channel_sidebar__page_row_icon" id="ag-icon-activity"></span>
+                  <span class="p-channel_sidebar__name">Activity</span>
+                </a>
+                <a class="p-channel_sidebar__page_row" href="javascript:void(0)" data-ag-nav="find">
+                  <span class="p-channel_sidebar__page_row_icon" id="ag-icon-find"></span>
+                  <span class="p-channel_sidebar__name">Browse</span>
+                  <span class="p-agentic_nav__shortcut" aria-hidden="true">⌘ G</span>
+                </a>
+                
+                <div class="p-agentic_frames" id="ag-frames"></div>
+              </div>
+              <div class="p-agentic_divider"></div>
+              <div class="p-channel_sidebar__list" id="ag-list"></div>
+              <div class="p-agentic_footer">
+                <div class="p-agentic_toggle" role="group" aria-label="Sidebar view">
+                  <button type="button" class="p-agentic_toggle__cell" data-ag-view="foryou" aria-pressed="true">For you</button>
+                  <button type="button" class="p-agentic_toggle__cell" data-ag-view="all" aria-pressed="false">All</button>
+                </div>
+                <div class="p-agentic_profile">
+                  <button type="button" class="p-agentic_profile__button" id="ag-profile-trigger" aria-label="Profile menu"
+                          aria-haspopup="menu" aria-expanded="false">
+                    <span class="p-agentic_profile__avatar">
+                      <img id="ag-avatar" alt="">
+                      <span class="p-control_strip__avatar__presence"></span>
+                    </span>
+                    <span class="p-agentic_profile__text">
+                      <span class="p-agentic_profile__name" id="ag-name">Carmen</span>
+                      <span class="p-agentic_profile__status" id="ag-status" hidden>
+                        <span id="ag-status-emoji"></span>
+                        <span class="p-agentic_profile__status_text" id="ag-status-text"></span>
+                      </span>
+                    </span>
+                  </button>
+                  <button type="button" class="p-agentic_profile__ws" id="ag-ws-trigger" aria-haspopup="menu" aria-expanded="false">
+                    <span class="p-agentic_profile__team_icon" id="ag-team-icon" aria-hidden="true">A</span>
+                    <span class="p-agentic_profile__ws_name" id="ag-workspace">Acme Inc</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="p-channel_sidebar" id="sidebar-home">
+
+              
+              <div class="p-channel_sidebar__header">
+                <button type="button" class="p-channel_sidebar__header_left" id="ws-menu-trigger"
+                        aria-haspopup="menu" aria-expanded="false">
+                  <span class="p-channel_sidebar__header_name" id="home-workspace">Acme Inc</span>
+                  <span class="p-channel_sidebar__header_caret" id="header-caret"></span>
+                </button>
+                <div class="p-channel_sidebar__header_actions">
+                  <button class="p-channel_sidebar__header_btn" aria-label="Settings" id="header-btn-1"></button>
+                  <button class="p-channel_sidebar__header_btn" aria-label="Compose" id="header-btn-2"></button>
+                </div>
+              </div>
+
+              
+              <div class="p-sidebar_trial" id="home-trial" hidden>
+                <span class="p-trial_tag" id="home-trial-tag" tabindex="0">Trial</span>
+              </div>
+              <button type="button" class="p-sidebar_offer" id="home-offer" hidden>
+                <span class="p-sidebar_offer__icon" id="home-offer-icon"></span>
+                <span class="p-sidebar_offer__text">
+                  <span class="p-sidebar_offer__title" id="home-offer-title"></span>
+                  <span class="p-sidebar_offer__subtitle" id="home-offer-subtitle"></span>
+                </span>
+              </button>
+
+              
+              <div class="p-channel_sidebar__filter" id="home-filter">
+                <span class="p-channel_sidebar__filter_icon" id="filter-search-icon"></span>
+                <span class="p-channel_sidebar__filter_text">Find a conversation…</span>
+              </div>
+
+              <div class="p-channel_sidebar__list">
+                
+                
+                <div class="p-channel_sidebar__pages">
+                  <a class="p-channel_sidebar__page_row p-channel_sidebar__page_row--unread" href="javascript:void(0)" data-page="unreads">
+                    <span class="p-channel_sidebar__page_row_icon" id="page-icon-unreads"></span>
+                    <span class="p-channel_sidebar__name">Unreads</span>
+                  </a>
+                  <a class="p-channel_sidebar__page_row" href="javascript:void(0)" data-page="threads">
+                    <span class="p-channel_sidebar__page_row_icon" id="page-icon-threads"></span>
+                    <span class="p-channel_sidebar__name">Threads</span>
+                  </a>
+                  <a class="p-channel_sidebar__page_row" href="javascript:void(0)" data-page="huddles">
+                    <span class="p-channel_sidebar__page_row_icon" id="page-icon-huddles"></span>
+                    <span class="p-channel_sidebar__name">Huddles</span>
+                  </a>
+                  <a class="p-channel_sidebar__page_row" href="javascript:void(0)" data-page="recap">
+                    <span class="p-channel_sidebar__page_row_icon" id="page-icon-recap"></span>
+                    <span class="p-channel_sidebar__name">Recap</span>
+                  </a>
+                  <a class="p-channel_sidebar__page_row" href="javascript:void(0)" data-page="drafts">
+                    <span class="p-channel_sidebar__page_row_icon" id="page-icon-drafts"></span>
+                    <span class="p-channel_sidebar__name">Drafts &amp; sent</span>
+                    <span class="p-channel_sidebar__draft_count" id="drafts-count">
+                      <span id="page-icon-draft-pencil"></span><span id="drafts-count-n">20</span>
+                    </span>
+                  </a>
+                  <a class="p-channel_sidebar__page_row" href="javascript:void(0)" data-page="saved">
+                    <span class="p-channel_sidebar__page_row_icon" id="page-icon-saved"></span>
+                    <span class="p-channel_sidebar__name">Saved</span>
+                  </a>
+                  <a class="p-channel_sidebar__page_row" href="javascript:void(0)" data-page="directories">
+                    <span class="p-channel_sidebar__page_row_icon" id="page-icon-directories"></span>
+                    <span class="p-channel_sidebar__name">Directories</span>
+                  </a>
+                </div>
+
+                
+                <div class="p-channel_sidebar__divider">
+                  <div class="p-channel_sidebar__divider_line"></div>
+                </div>
+
+                
+                <div class="p-channel_sidebar__conversations">
+
+                  
+                  <div class="p-channel_sidebar__section">
+                    <div class="p-channel_sidebar__section_heading" data-section-toggle="starred">
+                      <span class="p-channel_sidebar__section_heading_toggle">
+                        <span class="p-channel_sidebar__section_heading_emoji" id="sec-icon-starred"></span>
+                        <span class="p-channel_sidebar__section_heading_caret" id="sec-caret-starred"></span>
+                      </span>
+                      <span class="p-channel_sidebar__section_heading_label">Starred</span>
+                      <span class="p-channel_sidebar__section_heading_buttons">
+                        <button class="p-channel_sidebar__section_heading_btn" aria-label="More actions" id="sec-more-starred"></button>
+                      </span>
+                    </div>
+                    <div data-section-content="starred"></div>
+                  </div>
+
+                  
+                  <div class="p-channel_sidebar__section">
+                    <div class="p-channel_sidebar__section_heading" data-section-toggle="channels">
+                      <span class="p-channel_sidebar__section_heading_toggle">
+                        <span class="p-channel_sidebar__section_heading_emoji" id="sec-icon-channels"></span>
+                        <span class="p-channel_sidebar__section_heading_caret" id="sec-caret-channels"></span>
+                      </span>
+                      <span class="p-channel_sidebar__section_heading_label">Channels</span>
+                      <span class="p-channel_sidebar__section_heading_buttons">
+                        <button class="p-channel_sidebar__section_heading_btn" aria-label="Add channels" id="sec-add-channels"></button>
+                        <button class="p-channel_sidebar__section_heading_btn" aria-label="More actions" id="sec-more-channels"></button>
+                      </span>
+                    </div>
+                    <div data-section-content="channels"></div>
+                  </div>
+
+                  
+                  <div class="p-channel_sidebar__section">
+                    <div class="p-channel_sidebar__section_heading" data-section-toggle="dms">
+                      <span class="p-channel_sidebar__section_heading_toggle">
+                        <span class="p-channel_sidebar__section_heading_emoji" id="sec-icon-dms"></span>
+                        <span class="p-channel_sidebar__section_heading_caret" id="sec-caret-dms"></span>
+                      </span>
+                      <span class="p-channel_sidebar__section_heading_label">Direct messages</span>
+                      <span class="p-channel_sidebar__section_heading_buttons">
+                        <button class="p-channel_sidebar__section_heading_btn" aria-label="Start a direct message" id="sec-add-dms"></button>
+                        <button class="p-channel_sidebar__section_heading_btn" aria-label="More actions" id="sec-more-dms"></button>
+                      </span>
+                    </div>
+                    <div data-section-content="dms"></div>
+                  </div>
+
+                  
+                  <div class="p-channel_sidebar__section">
+                    <div class="p-channel_sidebar__section_heading" data-section-toggle="apps">
+                      <span class="p-channel_sidebar__section_heading_toggle">
+                        <span class="p-channel_sidebar__section_heading_emoji" id="sec-icon-apps"></span>
+                        <span class="p-channel_sidebar__section_heading_caret" id="sec-caret-apps"></span>
+                      </span>
+                      <span class="p-channel_sidebar__section_heading_label">Agents &amp; apps</span>
+                      <span class="p-channel_sidebar__section_heading_buttons">
+                        <button class="p-channel_sidebar__section_heading_btn" aria-label="More actions" id="sec-more-apps"></button>
+                      </span>
+                    </div>
+                    <div data-section-content="apps"></div>
+                  </div>
+
+                </div>
+              </div>
+
+              
+              <div class="p-sidebar_invite" id="home-invite" hidden>
+                <span class="p-sidebar_invite__text">Slack works better when you use it together.</span>
+                <button type="button" class="p-sidebar_invite__cta" data-unsupported="Invite people to Acme Inc"><span id="home-invite-icon"></span>Invite teammates</button>
+              </div>
+            </div>
+          </div>
+
+          
+          <div class="p-view_contents p-view_contents--primary">
+
+            
+            <div class="p-page_view" id="primary-page" hidden></div>
+
+            
+            <div class="p-activity_head" id="activity-head" hidden></div>
+            <div class="p-activity_list" id="activity-list" hidden></div>
+            <div class="p-nux_pane" id="activity-pane" hidden></div>
+            <div class="p-resizer" id="split-resizer" role="separator" tabindex="0" hidden
+                 aria-orientation="vertical" aria-label="Resize activity list"></div>
+
+            
+            <div class="p-channel_view" id="primary-channel">
+
+            
+            <div class="p-view_header">
+              <div class="p-view_header__text">
+                <button class="c-icon_button p-view_header__star_btn" aria-label="Star channel" type="button" id="vh-star"></button>
+                <button class="p-view_header__big_button" data-unsupported="Channel details">
+                  <span class="p-view_header__channel_icon" id="vh-channel-icon"></span>
+                  <span class="p-view_header__title" id="vh-title">project-acme</span>
+                </button>
+                <span class="p-view_header__action_chevron" id="vh-title-chevron"></span>
+                <span class="p-view_header__description" id="vh-description"></span>
+              </div>
+              <div class="p-view_header__actions" id="vh-actions">
+                
+                <button class="bt-vh_invite" type="button" data-f30-action="invite">
+                  <span id="vh-invite-icon"></span><span>Invite teammates</span>
+                </button>
+                
+                <button class="c-icon_button p-view_header__action_btn p-view_header__action_btn--icon-only p-view_header__action_btn--agentic"
+                        aria-label="Files" type="button" data-unsupported="Channel files">
+                  <span id="vh-folder"></span>
+                </button>
+                <button class="c-icon_button p-view_header__action_btn p-view_header__members" aria-label="Members" type="button" data-unsupported="Channel members">
+                  <span id="vh-members"></span>
+                  <span class="p-view_header__facepile" id="vh-facepile"></span>
+                  <span class="p-view_header__action_label" id="vh-member-count">4</span>
+                </button>
+                
+                <span class="f30-huddle_btn" id="vh-huddle-wrap">
+                  <button class="c-icon_button p-view_header__action_btn f30-huddle_btn__start" aria-label="Huddle" type="button" id="vh-huddle-start">
+                    <span id="vh-huddle"></span><span class="f30-huddle_btn__label" id="vh-huddle-label">Huddle</span>
+                  </button>
+                  <button class="c-icon_button p-view_header__action_btn f30-huddle_btn__options" aria-label="More Huddles options" type="button" id="vh-huddle-options">
+                    <span class="p-view_header__action_chevron" id="vh-huddle-chevron"></span>
+                  </button>
+                </span>
+                <button class="c-icon_button p-view_header__action_btn p-view_header__action_btn--icon-only p-view_header__action_btn--ia4" aria-label="Notifications" type="button" id="vh-notif-btn">
+                  <span id="vh-notifications"></span>
+                </button>
+                <button class="c-icon_button p-view_header__action_btn p-view_header__action_btn--icon-only p-view_header__action_btn--ia4" aria-label="Search" type="button" id="vh-search-btn">
+                  <span id="vh-search"></span>
+                </button>
+                <button class="c-icon_button p-view_header__action_btn p-view_header__action_btn--icon-only" aria-label="More" type="button" id="vh-more-btn">
+                  <span id="vh-more"></span>
+                </button>
+              </div>
+            </div>
+
+            
+            <div class="p-channel_tabs" id="tabs-record" hidden>
+              <button class="p-channel_tabs__tab p-channel_tabs__tab--active">
+                <span id="tab-messages-icon"></span>
+                Messages
+              </button>
+              <button class="p-channel_tabs__tab">
+                <span id="tab-account-icon"></span>
+                Account details
+              </button>
+              <button class="p-channel_tabs__tab">
+                <span id="tab-summary-icon"></span>
+                Summary
+              </button>
+              <button class="p-channel_tabs__tab">
+                More
+                <span id="tab-more-icon"></span>
+              </button>
+              <button class="p-channel_tabs__tab p-channel_tabs__tab--add">
+                <span id="tab-add-icon"></span>
+              </button>
+            </div>
+
+            
+            <div class="p-channel_tabs" id="tabs-standard" hidden>
+              <button class="p-channel_tabs__tab p-channel_tabs__tab--active" data-tab="messages">
+                <span id="tab2-messages-icon"></span>
+                Messages
+              </button>
+              <button class="p-channel_tabs__tab" data-tab="canvas">
+                <span id="tab2-canvas-icon"></span>
+                Add canvas
+              </button>
+              <button class="p-channel_tabs__tab" data-channel-only data-tab="files">
+                <span id="tab2-files-icon"></span>
+                Files &amp; links
+              </button>
+              <button class="p-channel_tabs__tab" data-channel-only data-tab="pins">
+                <span id="tab2-pins-icon"></span>
+                Pins
+              </button>
+              <button class="p-channel_tabs__tab p-channel_tabs__tab--add" data-tab="add">
+                <span id="tab2-add-icon"></span>
+              </button>
+            </div>
+
+            
+            <div class="p-message-pane" id="message-pane"></div>
+
+            <div class="p-message_input">
+              <div class="c-wysiwyg_container">
+                <div class="c-wysiwyg_container__body">
+                  <div class="c-wysiwyg_container__formatting">
+                    <button class="c-wysiwyg_container__button" title="Bold" id="cmp-bold"></button>
+                    <button class="c-wysiwyg_container__button" title="Italic" id="cmp-italic"></button>
+                    <button class="c-wysiwyg_container__button" title="Underline" id="cmp-underline"></button>
+                    <button class="c-wysiwyg_container__button" title="Strikethrough" id="cmp-strike"></button>
+                    <div class="c-wysiwyg_container__formatting_divider"></div>
+                    <button class="c-wysiwyg_container__button" title="Link" id="cmp-link"></button>
+                    <div class="c-wysiwyg_container__formatting_divider"></div>
+                    <button class="c-wysiwyg_container__button" title="Numbered list" id="cmp-ol"></button>
+                    <button class="c-wysiwyg_container__button" title="Bulleted list" id="cmp-ul"></button>
+                    <div class="c-wysiwyg_container__formatting_divider"></div>
+                    <button class="c-wysiwyg_container__button" title="Blockquote" id="cmp-quote"></button>
+                    <div class="c-wysiwyg_container__formatting_divider"></div>
+                    <button class="c-wysiwyg_container__button" title="Code" id="cmp-code"></button>
+                    <button class="c-wysiwyg_container__button" title="Code block" id="cmp-codeblock"></button>
+                  </div>
+                  <div class="c-texty_input" contenteditable="true">
+                    <span class="ql-placeholder" id="composer-placeholder">Message #project-acme</span>
+                  </div>
+                  <div class="c-wysiwyg_container__footer">
+                    <div class="c-wysiwyg_container__toolbar_buttons">
+                      <button class="c-wysiwyg_container__button" title="Add attachment" id="cmp-plus"></button>
+                      <button class="c-wysiwyg_container__button" title="Formatting" id="cmp-aa"></button>
+                      <button class="c-wysiwyg_container__button" title="Emoji" id="cmp-emoji"></button>
+                      <button class="c-wysiwyg_container__button" title="Mention someone" id="cmp-mention"></button>
+                      <button class="c-wysiwyg_container__button" title="Record video clip" id="cmp-video"></button>
+                      <button class="c-wysiwyg_container__button" title="Record audio clip" id="cmp-mic"></button>
+                    </div>
+                    <div class="c-wysiwyg_container__suffix">
+                      <div class="c-wysiwyg_container__send_button--with_options c-wysiwyg_container__send_button--with_options_disabled">
+                        <button class="c-wysiwyg_container__button--send" title="Send" id="cmp-send"></button>
+                        <button class="c-wysiwyg_container__button--send_options" title="Send options" id="cmp-send-opts"></button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+            </div>
+            
+
+          </div>
+
+        </div>
+
+        
+        <div class="p-resizer" id="slackbot-resizer" role="separator" tabindex="0"
+             aria-orientation="vertical" aria-label="Resize Slackbot" hidden></div>
+        <aside class="p-split_view" id="slackbot-split" aria-label="Slackbot" hidden>
+          <div class="p-view_header">
+            <div class="p-view_header__text">
+              <span class="p-view_header__big_button">
+                <span class="p-view_header__channel_icon p-split_view__title_icon" id="sb-title-icon"></span>
+                <span class="p-view_header__title">Slackbot</span>
+              </span>
+            </div>
+            <div class="p-view_header__actions">
+              <button class="c-icon_button p-view_header__action_btn p-view_header__action_btn--icon-only" aria-label="New message" type="button" id="sb-new"></button>
+              <button class="c-icon_button p-view_header__action_btn p-view_header__action_btn--icon-only" aria-label="History" type="button" id="sb-history"></button>
+              <button class="c-icon_button p-view_header__action_btn p-view_header__action_btn--icon-only" aria-label="More" type="button" id="sb-more"></button>
+              <button class="c-icon_button p-view_header__action_btn p-view_header__action_btn--icon-only" aria-label="Close" type="button" id="sb-close"></button>
+            </div>
+          </div>
+          <div class="p-sb_companion" id="sb-companion"></div>
+          <div class="p-message_input">
+            <div class="c-wysiwyg_container" id="sb-composer" data-composer="slackbot">
+              <div class="c-wysiwyg_container__body">
+                <div class="c-texty_input" contenteditable="true" id="sb-input" role="textbox" aria-label="Message Slackbot">
+                  <span class="ql-placeholder" id="sb-placeholder">Ask anything</span>
+                </div>
+                <div class="c-wysiwyg_container__footer">
+                  <div class="c-wysiwyg_container__toolbar_buttons">
+                    <button class="c-wysiwyg_container__button" title="Add attachment" id="sb-plus"></button>
+                    <button class="c-wysiwyg_container__button" title="Formatting" id="sb-aa"></button>
+                    <button class="c-wysiwyg_container__button" title="Projects" id="sb-projects"></button>
+                  </div>
+                  <div class="c-wysiwyg_container__suffix">
+                    <div class="c-wysiwyg_container__toolbar_buttons">
+                      <button class="c-wysiwyg_container__button" title="Record audio clip" id="sb-mic"></button>
+                    </div>
+                    <button class="c-wysiwyg_container__button--send" title="Send" id="sb-send"></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="p-sb_disclaimer">Slackbot is AI and can make mistakes.</div>
+          </div>
+        </aside>
+      </div>
+
+    </div>
+  </div>
+
+  
+  <div class="p-onboarding_page" id="onb-page" hidden></div>
+  <div class="c-sk-modal_overlay" id="onb-modal" hidden>
+    <div class="c-sk-modal c-sk-modal--medium" role="dialog" aria-modal="true" aria-labelledby="onb-modal-title">
+      <div class="c-sk-modal__header">
+        <h2 class="c-sk-modal__title" id="onb-modal-title">Create a team</h2>
+        <button type="button" class="c-icon_button c-icon_button--size_medium c-icon_button--default" id="onb-modal-close" aria-label="Close"></button>
+      </div>
+      <div class="c-sk-modal__content" id="onb-modal-body"></div>
+    </div>
+  </div>
+
+  
+  <div class="c-sk-modal_overlay" id="unsupported-modal" hidden>
+    <div class="c-sk-modal c-sk-modal--small" role="dialog" aria-modal="true" aria-labelledby="unsupported-title">
+      <div class="c-sk-modal__header">
+        <h2 class="c-sk-modal__title" id="unsupported-title">Not available</h2>
+        <button type="button" class="c-icon_button c-icon_button--size_medium c-icon_button--default" data-unsupported-close aria-label="Close"></button>
+      </div>
+      <div class="c-sk-modal__content p-unsupported__body">This experience is not supported, please return to the main prototype.</div>
+      <div class="p-unsupported__footer">
+        <button type="button" class="c-button c-button--primary c-button--medium" data-unsupported-close>Back to prototype</button>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="p-team_switcher" id="team-switcher" role="menu" aria-label="Workspaces" hidden></div>
+
+  
+  <div class="p-proto_menu" id="ws-menu" hidden></div>
+  <div class="p-proto_menu" id="profile-menu" hidden></div>
+  <div class="p-more_menu p-create_menu" id="create-menu" role="menu" aria-label="Create" hidden></div>
+
+  
+  <div class="p-more_menu" id="more-menu" role="menu" aria-label="More" hidden></div>
+
+
+<script>document.write('<script src="' + window.CLIENT_BASE + 'shell-client.js"><\/script>');</script>
+<script>
+  /* This prototype's own changes to the client. c.<part> reads a part (c.AUDIENCES, c.PAGES,
+     c.DEV_SETTINGS, …), c.replace('<part>', fn) swaps one, c.ready(fn) runs once the client is
+     on screen. What each part is: the top of shell-client.js; the full list: CLIENT_PARTS there. */
+  CLIENT.setup(function (c) {
+  });
+</script>
+</body>
+</html>

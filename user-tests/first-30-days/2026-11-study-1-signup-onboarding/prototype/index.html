@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Slack</title>
+  
+  <script>
+    window.F30_VISION = {
+      name: 'Slack',
+      path: 'user-tests/first-30-days/2026-11-study-1-signup-onboarding/prototype/',
+      ia: 'ia6',
+      oneSidebar: true,
+      frames: {},
+      styles: ['signup.css', 'slack.css', 'research.css'],
+      scripts: ['signup.js', 'slack.js', 'research.js']
+    };
+    /* What prototypes/first-30-days/vision/config.js sets, with addresses
+       from this folder (four folders below the kit's root) */
+    (function () {
+      var page = window.F30_VISION, F30 = '../../../../prototypes/first-30-days/', SH = '../../../../shared/';
+      window.F30_VARIANT = {
+        id: 'vision',
+        name: page.name,
+        path: page.path,
+        ia: page.ia,
+        styles: [SH + 'components/orbit-hero/orbit-hero.css', F30 + 'mvp/mvp.css', F30 + 'vision/vision.css'].concat(page.styles),
+        scripts: [SH + 'components/orbit-hero/orbit-hero.js', F30 + 'mvp/mvp.js'].concat(page.scripts),
+        frames: page.frames,
+        experiences: []
+      };
+    })();
+  </script>
+  <script src="../../../../shared/journey/load.js"></script>

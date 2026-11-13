@@ -1,0 +1,46 @@
+[
+{
+  "folder": "shared/slacky",
+  "href": "shared/slacky/showcase.html",
+  "name": "Slacky Component Library — Components",
+  "group": "slacky-component-library",
+  "main": true
+},
+{
+  "folder": "shared/slacky",
+  "href": "shared/slacky/messagekit.html",
+  "name": "Slacky Component Library — MessageKit",
+  "group": "slacky-component-library"
+},
+{
+  "folder": "shared/slacky",
+  "href": "shared/slacky/shells.html",
+  "name": "Slacky Component Library — Shells",
+  "group": "slacky-component-library"
+},
+{
+  "folder": "shared/slacky",
+  "href": "shared/slacky/wireframe-channel.html",
+  "name": "Wireframes — Channel",
+  "group": "wireframes",
+  "main": true
+},
+{
+  "folder": "shared/slacky",
+  "href": "shared/slacky/wireframe-dm.html",
+  "name": "Wireframes — DM",
+  "group": "wireframes"
+},
+{
+  "folder": "shared/slacky",
+  "href": "shared/slacky/wireframe-activity.html",
+  "name": "Wireframes — Activity",
+  "group": "wireframes"
+},
+{
+  "folder": "shared/slacky",
+  "href": "shared/slacky/wireframe-canvas.html",
+  "name": "Wireframes — Canvas",
+  "group": "wireframes"
+}
+]
